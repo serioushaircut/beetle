@@ -33,7 +33,7 @@ $start_time = Time.now.to_f
 # declare a handler class for message processing
 class Handler < Beetle::Handler
   def process
-    logger.info "Processed after #{Time.now - $start_time}s: #{message.id}"
+    logger.info "Processed after #{Time.now - $start_time}s: #{message.data}"
     $completed += 1
   end
 end
