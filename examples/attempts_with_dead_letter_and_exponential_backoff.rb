@@ -1,7 +1,7 @@
-# attempts_with_dead_letter_and_exponential_backoff.rb
+# attempts_with_dlx_and_per_message_ttl.rb
 # ! check the examples/README.rdoc for information on starting your redis/rabbit !
 #
-# start it with ruby attempts_with_dead_letter_and_exponential_backoff.rb
+# start it with `ruby attempts_with_dlx_and_per_message_ttl.rb`
 
 require "rubygems"
 require File.expand_path("../lib/beetle", File.dirname(__FILE__))
@@ -12,54 +12,48 @@ Beetle.config.logger.level = Logger::INFO
 # setup client with dead lettering enabled
 config = Beetle::Configuration.new
 config.dead_lettering_enabled = true
-config.dead_lettering_msg_ttl = 1000 # millis
+config.dead_lettering_msg_ttl = 6000
+
 client = Beetle::Client.new(config)
 client.register_queue(:test)
 client.register_message(:test)
 
+client.register_message(:test_dead_letter) # to allow for directly publishing to this queue (just proof of concept)
+
 # purge the test queue
 client.purge(:test)
-
+client.register_queue(:test_dead_letter) # only registered to use purge (the dead letter queues are not registered with beetle)
+client.purge(:test_dead_letter)
 # empty the dedup store
 client.deduplication_store.flushdb
 
 # setup our counter
 $completed = 0
-$exceptions_limit = 4
-
+$expected = 3
 # store the start time
 $start_time = Time.now.to_f
 
 # declare a handler class for message processing
-# handler fails on the first execution attempt, then succeeds
 class Handler < Beetle::Handler
-  # called when the handler receives the message, fails on first two attempts
-  # succeeds on the next and counts up our counter
   def process
-    logger.info "Attempts: #{message.attempts}, Base Delay: #{message.delay}, Processed at: #{Time.now.to_f - $start_time}"
-    raise "attempt #{message.attempts} for message #{message.data}" if message.attempts < $exceptions_limit
-    logger.info "processing of message #{message.data} succeeded on attempt #{message.attempts}. completed: #{$completed += 1}"
-  end
-
-  # called when handler process raised an exception
-  def error(exception)
-    logger.info "execution failed: #{exception}"
+    logger.info "Processed after #{Time.now.to_f - $start_time}s: #{message.data}"
+    $completed += 1
   end
 end
+client.register_handler(:test, Handler)
 
-# register our handler to the message, configure it to our max_attempts limit, we configure a (base) delay of 0.5
-client.register_handler(:test, Handler, exceptions: $exceptions_limit, delay: 1, max_delay: 10)
-# publish test messages
-client.publish(:test, 1) # publish returns the number of servers the message has been sent to
-puts "published 1 test message"
+# publish messages directly into the queue whose dlx setup points backwards to the target queue 'test'
+client.publish(:test_dead_letter, 'earliest', expiration: 2000)                # processed after 2 seconds
+client.publish(:test_dead_letter, 'latest', expiration: 8000)                  # processed after 8 seconds
+client.publish(:test_dead_letter, 'should be in the middle', expiration: 5000) # processed after 8 seconds
+puts "published 3 test messages"
 
 # start the listening loop
-client.listen do
+client.listen_queues([:test]) do
   # catch INT-signal and stop listening
   trap("INT") { client.stop_listening }
-  # we're adding a periodic timer to check whether all 10 messages have been processed without exceptions
   timer = EM.add_periodic_timer(1) do
-    if $completed == 1
+    if $completed == $expected
       timer.cancel
       client.stop_listening
     end
@@ -67,6 +61,6 @@ client.listen do
 end
 
 puts "Handled #{$completed} messages"
-if $completed != 1
+if $completed != $expected
   raise "Did not handle the correct number of messages"
 end

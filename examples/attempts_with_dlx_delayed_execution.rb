@@ -14,15 +14,16 @@ Beetle.config.logger.level = Logger::INFO
 # setup client with dead lettering enabled
 config = Beetle::Configuration.new
 config.dead_lettering_enabled = true
-config.dead_lettering_msg_ttl = 1000 # millis
+config.dead_lettering_msg_ttl = 10000 # sort of global/queue based ttl
 client = Beetle::Client.new(config)
 client.register_queue(:test)
 client.register_message(:test)
+
+# to allow for direct publishing into the dead_letter queue (which points backward to :test)
 client.register_message(:test_dead_letter)
 
 # purge the test queue
 client.purge(:test)
-
 # empty the dedup store
 client.deduplication_store.flushdb
 
@@ -46,8 +47,9 @@ end
 client.register_handler(:test, Handler)
 
 puts "Published 1 test message now to DEFERRED queue: #{Time.now.to_f}"
-client.publish(:test_dead_letter, {foo: :late}, headers: {defer: 6})
-client.publish(:test_dead_letter, {foo: :early}, headers: {defer: 3})
+# client.publish(:test_dead_letter, {foo: :late}, headers: {defer: 6})
+# client.publish(:test_dead_letter, {foo: :early}, headers: {defer: 3})
+client.publish(:test_dead_letter, {foo: :early}, expiration: 5000)
 
 #client.publish_at(:test, {foo: :bar}, 6.seconds.from_now) # should look like this
 
