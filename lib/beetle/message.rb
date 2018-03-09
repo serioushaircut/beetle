@@ -235,7 +235,7 @@ module Beetle
       @store.get(msg_id, :exceptions).to_i > exceptions_limit
     end
 
-    def exception_registered?
+    def exception_accepted?
       on_exceptions.nil? || @exception.class.in?(on_exceptions)
     end
 
@@ -281,7 +281,12 @@ module Beetle
         Beetle::reraise_expectation_errors!
         logger.warn "Beetle: exception '#{e}' during processing of message #{msg_id}"
         logger.warn "Beetle: backtrace: #{e.backtrace.join("\n")}"
-        result = RC::InternalError
+        result = 
+        
+        
+        
+        
+        ::InternalError
       end
       result
     end
@@ -371,11 +376,11 @@ module Beetle
         ack!
         logger.debug "Beetle: reached the handler exceptions limit: #{exceptions_limit} on #{msg_id}"
         RC::ExceptionsLimitReached
-      elsif !exception_registered?
+      elsif !exception_accepted?
         completed!
         ack!
-        logger.debug "Beetle: `#{@exception.class.name}` not included in `on_exceptions` (#{on_exceptions.join(',')}) on #{msg_id}"
-        RC::ExceptionNotRegistered
+        logger.debug "Beetle: `#{@exception.class.name}` not accepted on #{msg_id} (`on_exceptions` is set with #{on_exceptions.join(',')})"
+        RC::ExceptionNotAccepted
       else
         delete_mutex!
         timed_out!
