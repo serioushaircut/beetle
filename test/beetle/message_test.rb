@@ -60,9 +60,10 @@ module Beetle
     end
 
     test "the publishing options should silently ignore other parameters than the valid publishing keys" do
-      options = Message.publishing_options(:redundant => true, :mandatory => true, :bogus => true)
+      options = Message.publishing_options(:redundant => true, :mandatory => true, :expiration => 2000, :bogus => true)
       assert_equal "1", options[:headers][:flags]
       assert options[:mandatory]
+      assert options[:expiration]
       assert_nil options[:bogus]
     end
 
