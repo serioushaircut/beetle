@@ -1,14 +1,23 @@
 = Release Notes
 
+== Version 2.1.2
+
+* Fixed that redis key GC would never complete when a key scheduled
+  for GC was deleted by a consumer before the collector could retrieve
+  its expiry date.
+* Fixed tha redis key GC would crash on malformed keys.
+* Added method to collect keys specified in a file.
+
+
 == Version 2.1.1
 
-* Support redis failover with less than 100% acknolegment from failover clients.
+* Support redis failover with less than 100% acknowlegment from failover clients.
 
 == Version 2.1.0
 
 * Support exponential backoff when delaying messages using 'max_delay: int' option.
 
-== Version 2.0.1
+== Version 2.0.2
 
 * fixed incorrect computation of responsiveness threshold in
   configuration server
